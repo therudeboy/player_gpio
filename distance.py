@@ -5,8 +5,8 @@ from hosted import GPIO, config, node, device
 
 
 
-GPIO_TRIGGER = 29
-GPIO_ECHO = 31
+GPIO_TRIGGER = 5
+GPIO_ECHO = 6
 GPIO.setmode(GPIO.BCM)
     # set GPIO direction (IN / OUT)
 GPIO.setup(GPIO_TRIGGER, GPIO.OUT)
