@@ -1,0 +1,68 @@
+#!/usr/bin/python
+import time, sys, os, json, traceback, hashlib
+from hosted import api, config, node
+from ibquery import InfoBeamerQuery
+
+config.restart_on_update()
+
+def expire_images():
+    expire = time.time() - 86400
+    for fname in os.listdir("."):
+        if not fname.startswith("browser-"):
+            continue
+        try:
+            st = os.stat(fname)
+        except Exception as err:
+            print >>sys.stderr, "couldn't stat %s: %s" % (fname, err)
+            continue
+        if st.st_ctime > expire:
+            print >>sys.stderr, "no need to expire %s yet" % (fname,)
+            continue
+        try:
+            print >>sys.stderr, "expiring %s" % fname
+            os.unlink(fname)
+        except Exception as err:
+            print >>sys.stderr, "couldn't expire %s: %s" % (fname, err)
+
+def main():
+    ib = InfoBeamerQuery("127.0.0.1")
+    con = ib.node('root/browser').io(raw=True)
+    for line in con:
+        expire_images()
+
+        request = json.loads(line)
+        target = request['target']
+        url = request['url']
+        selector = request['selector']
+        max_age = request['max_age']
+        width, height, scale = request['width'], request['height'], request['scale']
+        condition = request['condition']
+
+        try:
+            with open(target, 'rb') as f:
+                known = hashlib.md5(f.read()).hexdigest()
+        except:
+            known = ''
+
+        try:
+            print >>sys.stderr, "requesting snapshot of %s into %s (known state %s)" % (
+                url, target, known or '<none>'
+            )
+            img = api.websnap.post(data=dict(
+                url = url,
+                selector = selector,
+                width = width,
+                height = height,
+                scale = scale,
+                condition = condition,
+                tz = config.metadata_timezone.zone,
+                max_age = max_age,
+                known = known,
+            ))
+            if img:
+                node.write_file(target, img)
+        except Exception:
+            traceback.print_exc()
+
+if __name__ == "__main__":
+    main()
